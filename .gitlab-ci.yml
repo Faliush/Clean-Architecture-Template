@@ -1,0 +1,51 @@
+stages:
+  - test
+  - build
+  - deploy
+
+services:
+  - docker:dind
+
+.before_build_script:
+  image: docker ## docker-dind
+  before_script:
+    - echo Environment=$Environment; IP=$VM_IPADRESS
+    - docker login $REGISTRY -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+    - echo $REGISTRY_URL
+
+test:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  script:
+    - dotnet test src/CleanArchitectureProjectTemplate.sln -c Release --no-restore --no-build
+
+build:
+  stage: build
+  environment:
+    name: Develop
+  only:
+    refs:
+      - master
+  extends: .before_build_script
+  script:
+    - docker build -t ... ./src/backend/Web.Api # build the image
+    - docker push ... # push the image to docker in our vm
+
+deploy:
+  stage: deploy
+  environment:
+    name: Develop
+  only:
+    refs:
+      - master
+  before_script:
+    - chmod 400 $SHH_PRIVATE_KEY # add restrictions to shh private key
+  script:
+    - shh -o StrictHostKeyChecking=no -i $SHH_PRIVATE_KEY $VM_USER@$VM_IPADRESS "
+      docker login $REGISTRY -u $REGISTRY_USER -p $REGISTRY_PASSWORD &&
+      docker ps -aq | xargs docker stop | xargs docker rm &&
+      docker run -d -p 8080:8080 ..."
+      # 0. login to our vm and run docker commands
+      # 1. login to docker registry
+      # 2. get all running containers, stop them and remove
+      # 3. run the image
